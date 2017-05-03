@@ -67,11 +67,11 @@ class BTSolver:
     def getTimeTaken(self):
         return self.endTime - self.startTime
 
-    def checkConsistency(self):
+    def checkConsistency(self, v):
         if self.cChecks == 0:
             return self.assignmentsCheck()
         elif self.cChecks == 1:
-            return self.forwardChecking()
+            return self.forwardChecking(v)
         elif self.cChecks == 2:
             return self.arcConsistency()
         else:
@@ -121,11 +121,14 @@ class BTSolver:
     def nakedTriples(self):
         return self.naked(length=3)
 
-    def forwardChecking(self):
-        """
-           TODO:  Implement forward checking.
-        """
-        pass
+    def forwardChecking(self, v):
+        neighbors = self.network.getNeighborsOfVariable(v)
+        for n in neighbors:
+            if v.getAssignment() == n.getAssignment():
+                return False
+            if not n.isAssigned():
+                n.removeValueFromDomain(v.getAssignment())
+        return True
 
     def arcConsistency(self):
         variables = [var for var in self.network.variables if var.isAssigned()]
@@ -164,7 +167,11 @@ class BTSolver:
         @return variable with minimum remaining values that isn't assigned,
         null if all variables are assigned.
         """
-        pass
+        variables = [var for var in self.network.variables
+                     if not var.isAssigned()]
+        if not variables:
+            return None
+        return min(variables, key=lambda x: len(x.Values()))
 
     def getDegree(self):
         """
@@ -172,7 +179,23 @@ class BTSolver:
         @return variable constrained by the most unassigned variables, null if
         all variables are assigned.
         """
-        pass
+        variables = [var for var in self.network.variables
+                     if not var.isAssigned()]
+        if not variables:
+            return None
+        neighbors = map(self.network.getNeighborsOfVariable,
+                        variables)
+        final = list()
+        constraints = dict()
+        for v, n in zip(variables, neighbors):
+            final.append(product([v], n))
+        final = [item for sublist in final for item in sublist]
+        for v, n in final:
+            if not n.isAssigned() and not set(v.Values()).isdisjoint(n.Values()):
+                constraints[v] = constraints.get(v, 0) + 1
+        if not constraints:
+            return variables[0]
+        return min(constraints, key=lambda x: constraints[x])
 
     def getNextValues(self, v):
         """
@@ -254,7 +277,7 @@ class BTSolver:
             v.updateDomain(domain.Domain(i))
             self.numAssignments += 1
 
-            if self.checkConsistency() and self.checkHeuristics():
+            if self.checkConsistency(v) and self.checkHeuristics():
                 self.solveLevel(level + 1)
 
             if not self.hassolution:
